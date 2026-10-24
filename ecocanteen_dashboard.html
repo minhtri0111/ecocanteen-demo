@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoCanteen - AI Biorefinery Dashboard</title>
+    <!-- Tailwind CSS cho giao diện -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js cho biểu đồ thống kê -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome cho Icon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0fdf4; /* Nền xanh lá nhạt */
+        }
+        
+        /* Hiệu ứng quét của Camera AI */
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background-color: rgba(34, 197, 94, 0.8);
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.8);
+            animation: scan 2s infinite linear;
+            display: none;
+        }
+
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        /* Animation xuất hiện cho các bounding box */
+        .bbox {
+            opacity: 0;
+            transform: scale(0.9);
+            transition: all 0.3s ease-out;
+        }
+        .bbox.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- Header / Navbar -->
+    <nav class="bg-green-700 text-white p-4 shadow-md sticky top-0 z-50">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-leaf text-2xl text-green-300"></i>
+                <h1 class="text-2xl font-bold tracking-tight">EcoCanteen</h1>
+                <span class="bg-green-800 text-green-100 text-xs px-2 py-1 rounded-full ml-2">Nhóm 5</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-sm hidden md:inline-block"><i class="fas fa-clock mr-1"></i> <span id="currentTime"></span></span>
+                <button class="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg font-medium transition duration-200">
+                    <i class="fas fa-user-circle mr-1"></i> Quản trị
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mx-auto p-4 md:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Cột trái: Hệ thống Camera AI Phân loại (Chiếm 2/3 không gian trên Desktop) -->
+        <section class="col-span-1 lg:col-span-2 flex flex-col gap-6">
+            
+            <!-- Widget: Camera AI -->
+            <div class="bg-white rounded-2xl shadow-sm border border-green-100 p-5 overflow-hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-gray-800"><i class="fas fa-camera text-green-600 mr-2"></i>Hệ Thống Phân Loại AI</h2>
+                    <span class="flex items-center gap-2 text-sm font-semibold text-green-600 bg-green-50 px-3 py-1 rounded-full">
+                        <span class="relative flex h-3 w-3">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                        </span>
+                        Trực tuyến
+                    </span>
+                </div>
+                
+                <!-- Khung hiển thị Camera -->
+                <div class="relative w-full aspect-video bg-gray-200 rounded-xl overflow-hidden border-2 border-dashed border-gray-300 flex justify-center items-center group">
+                    <!-- Ảnh nền giả lập khay thức ăn -->
+                    <img src="https://placehold.co/800x450/e2e8f0/475569?text=Đang+đợi+khay+thức+ăn..." id="trayImage" class="object-cover w-full h-full transition duration-500">
+                    
+                    <!-- Hiệu ứng tia quét -->
+                    <div id="scanLine" class="scan-line"></div>
+
+                    <!-- Lớp phủ (Bounding Boxes) sẽ được kích hoạt bằng JS -->
+                    <!-- Cơm -->
+                    <div id="box-rice" class="bbox absolute border-2 border-blue-500 bg-blue-500/10 rounded" style="top: 25%; left: 15%; width: 25%; height: 35%;">
+                        <span class="absolute -top-6 left-0 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded shadow"><i class="fas fa-bowl-rice mr-1"></i>Cơm thừa: 120g</span>
+                    </div>
+                    <!-- Rau -->
+                    <div id="box-veg" class="bbox absolute border-2 border-green-500 bg-green-500/10 rounded" style="top: 15%; left: 45%; width: 35%; height: 30%;">
+                        <span class="absolute -top-6 left-0 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded shadow"><i class="fas fa-leaf mr-1"></i>Rau thừa: 80g</span>
+                    </div>
+                    <!-- Thịt/Món mặn -->
+                    <div id="box-meat" class="bbox absolute border-2 border-red-500 bg-red-500/10 rounded" style="top: 55%; left: 35%; width: 30%; height: 25%;">
+                        <span class="absolute -top-6 left-0 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded shadow"><i class="fas fa-drumstick-bite mr-1"></i>Thịt thừa: 45g</span>
+                    </div>
+                    <!-- Dầu mỡ / Nước canh -->
+                    <div id="box-oil" class="bbox absolute border-2 border-yellow-500 bg-yellow-500/10 rounded" style="top: 60%; left: 70%; width: 15%; height: 20%;">
+                        <span class="absolute -top-6 right-0 bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded shadow"><i class="fas fa-tint mr-1"></i>Nước/Dầu</span>
+                    </div>
+                </div>
+
+                <!-- Bảng điều khiển -->
+                <div class="mt-5 flex flex-wrap justify-between items-center bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <div class="text-sm text-gray-500">
+                        <p>Dữ liệu được dùng để tối ưu mô hình: <strong class="text-green-600">Food Waste Biorefinery</strong></p>
+                    </div>
+                    <button id="scanBtn" onclick="simulateAIScan()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 transform active:scale-95">
+                        <i class="fas fa-robot"></i> Mô Phỏng Quét Khay
+                    </button>
+                </div>
+            </div>
+            
+        </section>
+
+        <!-- Cột phải: Thống kê & Trạng thái Biorefinery -->
+        <aside class="col-span-1 flex flex-col gap-6">
+            
+            <!-- Widget: Trạng thái hệ thống Biorefinery -->
+            <div class="bg-white rounded-2xl shadow-sm border border-green-100 p-5">
+                <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-recycle text-green-600 mr-2"></i>Chu Trình Khép Kín</h2>
+                
+                <div class="flex flex-col gap-4">
+                    <!-- Năng lượng Biogas -->
+                    <div class="flex items-center justify-between p-4 bg-orange-50 rounded-xl border border-orange-100 hover:shadow-md transition">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-orange-200 p-3 rounded-full text-orange-600 text-xl"><i class="fas fa-fire"></i></div>
+                            <div>
+                                <span class="block font-semibold text-gray-700">Biogas (Ủ kỵ khí)</span>
+                                <span class="block text-xs text-gray-500">Phục vụ đun nấu tại chỗ</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="block font-bold text-orange-600 text-xl">14.2 m³</span>
+                            <span class="text-xs text-green-600"><i class="fas fa-arrow-up"></i> 1.2%</span>
+                        </div>
+                    </div>
+
+                    <!-- Dầu ăn thải -->
+                    <div class="flex items-center justify-between p-4 bg-yellow-50 rounded-xl border border-yellow-100 hover:shadow-md transition">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-yellow-200 p-3 rounded-full text-yellow-600 text-xl"><i class="fas fa-oil-can"></i></div>
+                            <div>
+                                <span class="block font-semibold text-gray-700">Dầu Ăn Thải</span>
+                                <span class="block text-xs text-gray-500">Chuyển làm Biodiesel</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="block font-bold text-yellow-600 text-xl">5.8 L</span>
+                        </div>
+                    </div>
+
+                    <!-- Phân Compost -->
+                    <div class="flex items-center justify-between p-4 bg-green-50 rounded-xl border border-green-100 hover:shadow-md transition">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-green-200 p-3 rounded-full text-green-700 text-xl"><i class="fas fa-seedling"></i></div>
+                            <div>
+                                <span class="block font-semibold text-gray-700">Phân Compost</span>
+                                <span class="block text-xs text-gray-500">Bón vườn trường FPT</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="block font-bold text-green-700 text-xl">22 kg</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Widget: Biểu đồ thống kê rác -->
+            <div class="bg-white rounded-2xl shadow-sm border border-green-100 p-5">
+                <h2 class="text-xl font-bold text-gray-800 mb-2"><i class="fas fa-chart-bar text-green-600 mr-2"></i>Thống Kê Khối Lượng</h2>
+                <p class="text-xs text-gray-500 mb-4">Lượng rác hữu cơ thu gom trong 7 ngày qua (kg)</p>
+                
+                <div class="relative h-48 w-full">
+                    <canvas id="wasteChart"></canvas>
+                </div>
+            </div>
+
+        </aside>
+    </main>
+
+    <!-- Modal Thông báo (Thay thế alert) -->
+    <div id="messageModal" class="fixed inset-0 bg-black/50 hidden flex justify-center items-center z-50 opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl transform scale-95 transition-transform duration-300" id="modalContent">
+            <div class="text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                    <i class="fas fa-check text-xl text-green-600"></i>
+                </div>
+                <h3 class="text-lg leading-6 font-bold text-gray-900" id="modalTitle">Hoàn thành</h3>
+                <div class="mt-2 px-7 py-3">
+                    <p class="text-sm text-gray-500" id="modalMessage">Hệ thống đã ghi nhận dữ liệu vào cơ sở dữ liệu thành công.</p>
+                </div>
+                <div class="items-center px-4 py-3">
+                    <button onclick="closeModal()" class="px-4 py-2 bg-green-600 text-white text-base font-medium rounded-lg w-full shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+                        Đóng
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script xử lý logic -->
+    <script>
+        // Hiển thị giờ hiện tại
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').innerText = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        // Xử lý mô phỏng quét AI
+        let isScanning = false;
+        
+        function simulateAIScan() {
+            if (isScanning) return;
+            isScanning = true;
+            
+            const btn = document.getElementById('scanBtn');
+            const img = document.getElementById('trayImage');
+            const scanLine = document.getElementById('scanLine');
+            const bboxes = document.querySelectorAll('.bbox');
+            
+            // Đổi trạng thái button
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang phân tích...';
+            btn.classList.replace('bg-green-600', 'bg-gray-400');
+            btn.classList.replace('hover:bg-green-700', 'hover:bg-gray-500');
+            
+            // Đổi ảnh giả lập có đồ ăn thừa
+            img.src = 'https://placehold.co/800x450/e2e8f0/475569?text=Khay+Thức+Ăn+Thực+Tế';
+            
+            // Reset bboxes
+            bboxes.forEach(box => box.classList.remove('active'));
+            
+            // Kích hoạt tia quét
+            scanLine.style.display = 'block';
+
+            // Giả lập thời gian AI phân tích (2.5 giây)
+            setTimeout(() => {
+                scanLine.style.display = 'none';
+                
+                // Hiển thị kết quả nhận diện
+                bboxes.forEach(box => box.classList.add('active'));
+                
+                // Trả lại trạng thái button
+                btn.innerHTML = '<i class="fas fa-check-circle"></i> Đã Ghi Nhận';
+                btn.classList.replace('bg-gray-400', 'bg-blue-600');
+                btn.classList.replace('hover:bg-gray-500', 'hover:bg-blue-700');
+                
+                // Hiển thị thông báo ghi nhận thành công
+                setTimeout(() => {
+                    showMessage("Phân loại thành công", "Đã cập nhật: 120g Cơm, 80g Rau, 45g Thịt. Dữ liệu đã chuyển đến hệ thống ủ Biogas.");
+                    
+                    // Reset về ban đầu sau vài giây
+                    setTimeout(() => {
+                        img.src = 'https://placehold.co/800x450/e2e8f0/475569?text=Đang+đợi+khay+thức+ăn...';
+                        bboxes.forEach(box => box.classList.remove('active'));
+                        btn.innerHTML = '<i class="fas fa-robot"></i> Mô Phỏng Quét Khay';
+                        btn.classList.replace('bg-blue-600', 'bg-green-600');
+                        btn.classList.replace('hover:bg-blue-700', 'hover:bg-green-700');
+                        isScanning = false;
+                    }, 3000);
+                }, 500);
+                
+            }, 2500);
+        }
+
+        // Logic Modal thông báo
+        const modal = document.getElementById('messageModal');
+        const modalContent = document.getElementById('modalContent');
+        
+        function showMessage(title, message) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMessage').innerText = message;
+            
+            modal.classList.remove('hidden');
+            // Timeout nhỏ để đảm bảo CSS transition hoạt động
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeModal() {
+            modal.classList.add('opacity-0');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        // Khởi tạo Biểu đồ Chart.js
+        window.addEventListener('DOMContentLoaded', () => {
+            const ctx = document.getElementById('wasteChart').getContext('2d');
+            
+            // Dữ liệu giả lập 7 ngày
+            const labels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+            const data = {
+                labels: labels,
+                datasets: [{
+                    label: 'Khối lượng rác (kg)',
+                    data: [4.2, 5.1, 4.8, 5.5, 6.2, 2.1, 1.5], // Số liệu giảm ngày cuối tuần
+                    backgroundColor: 'rgba(34, 197, 94, 0.7)', // Màu xanh Tailwind green-500
+                    borderColor: 'rgba(21, 128, 61, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            };
+
+            const config = {
+                type: 'bar',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 10,
+                            titleFont: { family: 'Inter', size: 13 },
+                            bodyFont: { family: 'Inter', size: 13 }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: '#f3f4f6',
+                                drawBorder: false
+                            },
+                            ticks: { font: { family: 'Inter' } }
+                        },
+                        x: {
+                            grid: {
+                                display: false,
+                                drawBorder: false
+                            },
+                            ticks: { font: { family: 'Inter' } }
+                        }
+                    },
+                    animation: {
+                        duration: 1500,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            };
+
+            new Chart(ctx, config);
+        });
+    </script>
+</body>
+</html>
