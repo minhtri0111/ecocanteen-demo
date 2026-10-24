@@ -6,11 +6,28 @@
     <title>EcoCanteen - AI Biorefinery Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Hiệu ứng tia quét AI */
+        .scan-line {
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            background-color: rgba(34, 197, 94, 0.8);
+            box-shadow: 0 0 10px rgba(34, 197, 94, 1);
+            animation: scan 2s infinite linear;
+        }
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+    </style>
 </head>
 <body class="bg-gray-100 font-sans">
 
     <!-- Header -->
-    <header class="bg-green-600 text-white p-4 shadow-md">
+    <header class="bg-green-700 text-white p-4 shadow-md">
         <div class="container mx-auto flex justify-between items-center">
             <h1 class="text-2xl font-bold"><i class="fas fa-leaf mr-2"></i>EcoCanteen</h1>
             <p class="text-sm">Hệ thống AI Phân loại & Tuần hoàn thức ăn thừa</p>
@@ -19,105 +36,140 @@
 
     <!-- Main Content -->
     <main class="container mx-auto mt-8 p-4">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
             
-            <!-- Cột trái: Camera & Chụp ảnh -->
-            <div class="bg-white rounded-lg shadow-lg p-6">
+            <!-- Cột trái: Camera & Chụp ảnh (Chiếm 5 cột) -->
+            <div class="md:col-span-5 bg-white rounded-lg shadow-lg p-6 flex flex-col">
                 <h2 class="text-xl font-bold mb-4 text-gray-800"><i class="fas fa-camera mr-2"></i>Trạm Quét Khay AI</h2>
                 
-                <!-- Cảnh báo quyền riêng tư -->
-                <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-3 mb-4 rounded text-sm">
-                    <p><strong><i class="fas fa-shield-alt mr-1"></i> Lưu ý quyền riêng tư:</strong> Camera chỉ chụp khay thức ăn từ trên xuống, tuyệt đối không ghi nhận mặt người dùng.</p>
+                <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-3 mb-4 rounded text-xs">
+                    <p><strong><i class="fas fa-shield-alt mr-1"></i> Quyền riêng tư:</strong> Camera chỉ chụp khay từ trên xuống, không ghi mặt người.</p>
                 </div>
 
                 <!-- Khung Video Camera -->
-                <div class="relative bg-black rounded-lg overflow-hidden flex justify-center items-center h-64 mb-4">
+                <div class="relative bg-gray-900 rounded-lg overflow-hidden flex justify-center items-center h-72 mb-4 border-4 border-gray-200">
                     <video id="camera-stream" autoplay playsinline class="w-full h-full object-cover"></video>
                     <canvas id="snap-canvas" class="hidden absolute top-0 left-0 w-full h-full object-cover"></canvas>
-                    <p id="camera-error" class="hidden text-white absolute text-center px-4">Không thể kết nối camera. Vui lòng cấp quyền!</p>
+                    
+                    <!-- Hiệu ứng quét khi AI xử lý -->
+                    <div id="scan-effect" class="hidden absolute top-0 left-0 w-full h-full pointer-events-none">
+                        <div class="scan-line"></div>
+                        <div class="absolute inset-0 bg-green-500 opacity-20"></div>
+                    </div>
+
+                    <p id="camera-error" class="hidden text-white absolute text-center px-4">Không thể kết nối camera!</p>
                 </div>
 
-                <div class="flex space-x-4">
-                    <button id="snap-btn" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
-                        <i class="fas fa-camera-retro mr-2"></i> Chụp Khay Thức Ăn
+                <div class="flex space-x-3 mt-auto">
+                    <button id="snap-btn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-md">
+                        <i class="fas fa-camera-retro mr-2"></i> Chụp Khay
                     </button>
-                    <button id="retake-btn" class="hidden flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
+                    <button id="retake-btn" class="hidden flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg transition shadow-md">
                         <i class="fas fa-redo mr-2"></i> Chụp Lại
                     </button>
                 </div>
             </div>
 
-            <!-- Cột phải: Kết quả phân tích & Thông kê -->
-            <div class="bg-white rounded-lg shadow-lg p-6">
-                <h2 class="text-xl font-bold mb-4 text-gray-800"><i class="fas fa-robot mr-2"></i>Kết Quả AI Phân Loại</h2>
+            <!-- Cột phải: Kết quả phân tích (Chiếm 7 cột) -->
+            <div class="md:col-span-7 bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-xl font-bold mb-4 text-gray-800"><i class="fas fa-microchip mr-2"></i>Phân Tích Food Waste Biorefinery</h2>
                 
-                <!-- Khu vực chờ phân tích -->
-                <div id="ai-loading" class="hidden text-center py-8">
-                    <i class="fas fa-spinner fa-spin text-4xl text-green-500 mb-2"></i>
-                    <p class="text-gray-600">Mô hình Computer Vision đang phân tích khay...</p>
+                <div id="empty-state" class="text-center py-16">
+                    <i class="fas fa-utensils text-gray-300 text-6xl mb-4"></i>
+                    <p class="text-gray-500">Đang chờ hình ảnh từ trạm quét khay...</p>
                 </div>
 
-                <!-- Bảng kết quả -->
+                <div id="ai-loading" class="hidden text-center py-16">
+                    <i class="fas fa-crosshairs fa-spin text-5xl text-green-500 mb-4"></i>
+                    <p class="text-gray-700 font-semibold text-lg">Mô hình AI đang bóc tách thành phần rác...</p>
+                    <p class="text-sm text-gray-500">Đang tìm kiếm tinh bột, hữu cơ, dầu mỡ và tạp chất vô cơ.</p>
+                </div>
+
                 <div id="ai-results" class="hidden">
-                    <p class="text-sm text-gray-500 mb-3">AI đã nhận diện các thành phần sau trên khay:</p>
-                    
-                    <!-- Các dòng rác -->
-                    <div class="space-y-4">
-                        <div class="flex items-center justify-between bg-green-50 p-3 rounded border border-green-200">
-                            <div class="flex items-center">
-                                <i class="fas fa-apple-alt text-green-600 text-xl w-8"></i>
-                                <div>
-                                    <p class="font-bold text-gray-800">Thức ăn thừa hữu cơ</p>
-                                    <p class="text-xs text-gray-500">Chuyển vào bồn ủ Biogas</p>
-                                </div>
+                    <!-- Bảng kết quả -->
+                    <div class="space-y-3 max-h-96 overflow-y-auto pr-2">
+                        
+                        <!-- Item 1: Tinh bột -->
+                        <div class="flex items-start p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div class="bg-blue-100 p-2 rounded mr-3">
+                                <i class="fas fa-bowl-rice text-blue-600 text-2xl"></i>
                             </div>
-                            <span class="font-bold text-green-700">75%</span>
+                            <div class="flex-1">
+                                <div class="flex justify-between">
+                                    <h4 class="font-bold text-gray-800">Cơm trắng thừa (Tinh bột)</h4>
+                                    <span class="text-xs font-bold bg-blue-200 text-blue-800 px-2 py-1 rounded">Độ tin cậy: 98%</span>
+                                </div>
+                                <p class="text-sm text-gray-600 mt-1"><strong><i class="fas fa-recycle text-green-600"></i> Hướng xử lý:</strong> Lên men vi sinh tạo axit béo bay hơi (VFA) để sản xuất hạt nhựa sinh học tự hủy (PHA/PLA). Phần bã chuyển qua hầm Biogas.</p>
+                            </div>
                         </div>
 
-                        <div class="flex items-center justify-between bg-yellow-50 p-3 rounded border border-yellow-200">
-                            <div class="flex items-center">
-                                <i class="fas fa-tint text-yellow-600 text-xl w-8"></i>
-                                <div>
-                                    <p class="font-bold text-gray-800">Dầu mỡ thải</p>
-                                    <p class="text-xs text-gray-500">Thu gom làm Biodiesel/Xà phòng</p>
-                                </div>
+                        <!-- Item 2: Hữu cơ -->
+                        <div class="flex items-start p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div class="bg-green-100 p-2 rounded mr-3">
+                                <i class="fas fa-carrot text-green-600 text-2xl"></i>
                             </div>
-                            <span class="font-bold text-yellow-700">15%</span>
+                            <div class="flex-1">
+                                <div class="flex justify-between">
+                                    <h4 class="font-bold text-gray-800">Rau củ / Cuống rau thừa (Hữu cơ)</h4>
+                                    <span class="text-xs font-bold bg-green-200 text-green-800 px-2 py-1 rounded">Độ tin cậy: 95%</span>
+                                </div>
+                                <p class="text-sm text-gray-600 mt-1"><strong><i class="fas fa-fire text-orange-500"></i> Hướng xử lý:</strong> Đưa vào bể ủ kỵ khí (Anaerobic Digester). Sản sinh khí Biogas (CH4) làm khí đốt đun nấu cho căn tin. Bã mùn ủ làm phân compost bón vườn trường.</p>
+                            </div>
                         </div>
 
-                        <div class="flex items-center justify-between bg-red-50 p-3 rounded border border-red-200">
-                            <div class="flex items-center">
-                                <i class="fas fa-box text-red-600 text-xl w-8"></i>
-                                <div>
-                                    <p class="font-bold text-gray-800">Bao bì / Tạp chất vô cơ</p>
-                                    <p class="text-xs text-gray-500">Chuyển sang thùng rác thường</p>
-                                </div>
+                        <!-- Item 3: Dầu mỡ -->
+                        <div class="flex items-start p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <div class="bg-yellow-100 p-2 rounded mr-3">
+                                <i class="fas fa-tint text-yellow-600 text-2xl"></i>
                             </div>
-                            <span class="font-bold text-red-700">10%</span>
+                            <div class="flex-1">
+                                <div class="flex justify-between">
+                                    <h4 class="font-bold text-gray-800">Nước dùng nhiều váng mỡ (Dầu mỡ thải)</h4>
+                                    <span class="text-xs font-bold bg-yellow-200 text-yellow-800 px-2 py-1 rounded">Độ tin cậy: 92%</span>
+                                </div>
+                                <p class="text-sm text-gray-600 mt-1"><strong><i class="fas fa-flask text-purple-500"></i> Hướng xử lý:</strong> Tách riêng. Thu gom thực hiện phản ứng este hóa tạo Biodiesel nhiên liệu, phụ phẩm làm dung môi xanh hoặc xà phòng sinh học.</p>
+                            </div>
                         </div>
+
+                        <!-- Item 4: Tạp chất -->
+                        <div class="flex items-start p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <div class="bg-red-100 p-2 rounded mr-3">
+                                <i class="fas fa-exclamation-triangle text-red-600 text-2xl"></i>
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex justify-between">
+                                    <h4 class="font-bold text-red-700">Thìa nhựa / Bao bì (Vô cơ)</h4>
+                                    <span class="text-xs font-bold bg-red-200 text-red-800 px-2 py-1 rounded animate-pulse">Cảnh báo tạp chất</span>
+                                </div>
+                                <p class="text-sm text-red-600 mt-1"><strong><i class="fas fa-ban"></i> Yêu cầu Checkpoint:</strong> Cần nhân viên gạt bỏ riêng vào thùng rác thường trước khi nạp rác hữu cơ vào hầm Biogas để tránh tắc nghẽn và chết vi sinh vật.</p>
+                            </div>
+                        </div>
+
                     </div>
 
-                    <div class="mt-6 pt-4 border-t border-gray-200 flex justify-between">
-                        <button class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-bold">Xác nhận nạp hệ thống</button>
-                        <button class="text-gray-500 hover:text-red-500 text-sm underline">Báo cáo AI nhận sai</button>
+                    <!-- Nút thao tác Checkpoint -->
+                    <div class="mt-5 pt-4 border-t border-gray-200 flex flex-wrap gap-3">
+                        <button id="confirm-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded shadow font-bold text-sm flex items-center">
+                            <i class="fas fa-check-circle mr-2"></i> Xác nhận nạp Biorefinery
+                        </button>
+                        <button id="report-btn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-5 py-2 rounded shadow text-sm flex items-center">
+                            <i class="fas fa-bug mr-2"></i> Báo AI nhận diện sai
+                        </button>
                     </div>
-                </div>
-
-                <!-- Trạng thái trống ban đầu -->
-                <div id="empty-state" class="text-center py-12">
-                    <i class="fas fa-utensils text-gray-300 text-5xl mb-4"></i>
-                    <p class="text-gray-400">Vui lòng chụp khay để hệ thống phân loại dòng rác.</p>
                 </div>
             </div>
-
         </div>
     </main>
 
     <script>
         const video = document.getElementById('camera-stream');
         const canvas = document.getElementById('snap-canvas');
+        const scanEffect = document.getElementById('scan-effect');
+        
         const snapBtn = document.getElementById('snap-btn');
         const retakeBtn = document.getElementById('retake-btn');
+        const confirmBtn = document.getElementById('confirm-btn');
+        const reportBtn = document.getElementById('report-btn');
         const errorMsg = document.getElementById('camera-error');
         
         const emptyState = document.getElementById('empty-state');
@@ -128,7 +180,7 @@
         async function startCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' } // Ưu tiên camera sau nếu dùng điện thoại
+                    video: { facingMode: 'environment' }
                 });
                 video.srcObject = stream;
             } catch (err) {
@@ -137,49 +189,63 @@
             }
         }
 
-        // Gọi hàm bật camera khi tải trang
         startCamera();
 
-        // Xử lý nút Chụp
+        // Xử lý nút Chụp Khay
         snapBtn.addEventListener('click', () => {
-            // Vẽ hình ảnh từ video lên canvas
+            // Chụp ảnh tĩnh
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            // Ẩn video, hiện ảnh đã chụp
+            // Hiển thị ảnh tĩnh và bật hiệu ứng quét
             video.classList.add('hidden');
             canvas.classList.remove('hidden');
+            scanEffect.classList.remove('hidden');
             
-            // Đổi nút Chụp thành Chụp Lại
+            // Cập nhật nút
             snapBtn.classList.add('hidden');
             retakeBtn.classList.remove('hidden');
 
-            // Xử lý giao diện bên AI
+            // Chuyển giao diện sang trạng thái Loading AI
             emptyState.classList.add('hidden');
             resultState.classList.add('hidden');
             loadingState.classList.remove('hidden');
 
-            // Giả lập thời gian AI xử lý (2 giây)
+            // Giả lập thời gian AI phân tích (3 giây)
             setTimeout(() => {
                 loadingState.classList.add('hidden');
+                scanEffect.classList.add('hidden'); // Tắt tia quét
                 resultState.classList.remove('hidden');
-            }, 2000);
+            }, 3000);
         });
 
         // Xử lý nút Chụp Lại
         retakeBtn.addEventListener('click', () => {
-            // Hiện lại video, ẩn ảnh canvas
             canvas.classList.add('hidden');
+            scanEffect.classList.add('hidden');
             video.classList.remove('hidden');
             
-            // Đổi nút
             retakeBtn.classList.add('hidden');
             snapBtn.classList.remove('hidden');
 
-            // Đưa bảng AI về trạng thái trống
             resultState.classList.add('hidden');
             emptyState.classList.remove('hidden');
+        });
+
+        // Xử lý Checkpoint: Xác nhận
+        confirmBtn.addEventListener('click', () => {
+            alert('ĐÃ VƯỢT QUA CHECKPOINT:\n- Tạp chất nhựa đã được yêu cầu gạt bỏ.\n- Cơm trắng được chuyển sang khu lên men VFA.\n- Rau củ nạp an toàn vào hầm ủ Biogas mini.\n- Dầu mỡ đã thu gom vào can riêng.');
+            retakeBtn.click(); // Reset về ban đầu
+        });
+
+        // Xử lý Checkpoint: Báo lỗi AI học lại
+        reportBtn.addEventListener('click', () => {
+            const feedback = prompt('Vui lòng nhập lỗi để AI học lại (Ví dụ: "Không có thìa nhựa", "AI nhận nhầm cơm thành bún"):');
+            if (feedback) {
+                alert('Hệ thống đã ghi nhận lỗi: "' + feedback + '" vào nhật ký để đánh giá lại mô hình. Xin cảm ơn!');
+                retakeBtn.click();
+            }
         });
     </script>
 </body>
